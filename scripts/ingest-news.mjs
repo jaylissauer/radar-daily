@@ -1524,32 +1524,6 @@ function dedupeTakeaways(items) {
   return output;
 }
 
-function overlapRatio(a, b) {
-  const aTokens = String(a || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]+/g, " ")
-    .split(/\s+/)
-    .filter((token) => token.length >= 4);
-
-  const bTokens = String(b || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]+/g, " ")
-    .split(/\s+/)
-    .filter((token) => token.length >= 4);
-
-  if (!aTokens.length || !bTokens.length) return 0;
-
-  const aSet = new Set(aTokens);
-  const bSet = new Set(bTokens);
-  let shared = 0;
-
-  for (const token of aSet) {
-    if (bSet.has(token)) shared += 1;
-  }
-
-  return shared / Math.max(aSet.size, bSet.size, 1);
-}
-
 function areTakeawaysAcceptable(items, title = "", summary = "") {
   if (!Array.isArray(items) || items.length < 2) return false;
 
