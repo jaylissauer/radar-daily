@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 function runIngestScript() {
   return new Promise<{
@@ -49,20 +50,14 @@ export async function GET(request: NextRequest) {
 
   if (!expectedSecret) {
     return Response.json(
-      {
-        ok: false,
-        error: "CRON_SECRET is missing in the environment.",
-      },
+      { ok: false, error: "CRON_SECRET is missing in the environment." },
       { status: 500 }
     );
   }
 
   if (authHeader !== `Bearer ${expectedSecret}`) {
     return Response.json(
-      {
-        ok: false,
-        error: "Unauthorized",
-      },
+      { ok: false, error: "Unauthorized" },
       { status: 401 }
     );
   }
@@ -72,6 +67,7 @@ export async function GET(request: NextRequest) {
   return Response.json(
     {
       ok: result.ok,
+      route: "/api/cron/ingest",
       code: result.code,
       stdoutTail: result.stdout.slice(-4000),
       stderrTail: result.stderr.slice(-4000),
