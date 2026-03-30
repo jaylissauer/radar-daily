@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
       "./scripts/**/*",
       "./node_modules/rss-parser/**/*",
       "./node_modules/slugify/**/*",
-      "./node_modules/@supabase/supabase-js/**/*",
+      "./node_modules/@supabase/**/*",
     ],
   },
 };
