@@ -1,47 +1,16 @@
-import { spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { promisify } from "node:util";
 import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-function runIngestScript() {
-  return new Promise<{
-    ok: boolean;
-    code: number | null;
-    stdout: string;
-    stderr: string;
-  }>((resolve) => {
-    const child = spawn("node", ["scripts/ingest-news-with-diagnostics.mjs"], {
-      cwd: process.cwd(),
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+const execFileAsync = promisify(execFile);
 
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      const text = chunk.toString();
-      stdout += text;
-      process.stdout.write(text);
-    });
-
-    child.stderr.on("data", (chunk) => {
-      const text = chunk.toString();
-      stderr += text;
-      process.stderr.write(text);
-    });
-
-    child.on("close", (code) => {
-      resolve({
-        ok: code === 0,
-        code,
-        stdout,
-        stderr,
-      });
-    });
-  });
+function getIngestScriptPath() {
+  return path.join(process.cwd(), "scripts", "ingest-news-with-diagnostics.mjs");
 }
 
 export async function GET(request: NextRequest) {
@@ -62,16 +31,35 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const result = await runIngestScript();
+  try {
+    const scriptPath = getIngestScriptPath();
 
-  return Response.json(
-    {
-      ok: result.ok,
-      route: "/api/cron/ingest",
-      code: result.code,
-      stdoutTail: result.stdout.slice(-4000),
-      stderrTail: result.stderr.slice(-4000),
-    },
-    { status: result.ok ? 200 : 500 }
-  );
+    const { stdout, stderr } = await execFileAsync("node", [scriptPath], {
+      cwd: process.cwd(),
+      env: process.env,
+      maxBuffer: 1024 * 1024 * 10,
+    });
+
+    return Response.json(
+      {
+        ok: true,
+        route: "/api/cron/ingest",
+        scriptPath,
+        stdoutTail: String(stdout || "").slice(-4000),
+        stderrTail: String(stderr || "").slice(-4000),
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    return Response.json(
+      {
+        ok: false,
+        route: "/api/cron/ingest",
+        error: error?.message || "Unknown error",
+        stdoutTail: String(error?.stdout || "").slice(-4000),
+        stderrTail: String(error?.stderr || "").slice(-4000),
+      },
+      { status: 500 }
+    );
+  }
 }
