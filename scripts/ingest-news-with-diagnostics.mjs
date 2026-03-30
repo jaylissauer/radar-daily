@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
 
@@ -35,12 +36,10 @@ function createEmptySourceRun(sourceName, sourceUrl = null) {
 
 function normaliseBodyStatus(rawStatus) {
   const value = String(rawStatus || "").toLowerCase().trim();
-
   if (!value) return "unknown";
   if (["ok", "yes", "found", "full", "success"].includes(value)) return "yes";
   if (value === "blocked") return "blocked";
   if (value === "not-found") return "not-found";
-
   return "unknown";
 }
 
@@ -108,7 +107,6 @@ function beginSource(state, sourceName, sourceUrl = null) {
 
 function parseLine(line, state) {
   const trimmed = String(line || "").trim();
-
   if (!trimmed) return;
 
   const fetchingWithUrlMatch = trimmed.match(/^Fetching\s+(.+?)\s+from\s+(.+)$/i);
@@ -151,7 +149,6 @@ function parseLine(line, state) {
     if (state.currentSourceSlug === sourceSlug) {
       state.currentSourceSlug = null;
     }
-
     return;
   }
 
@@ -206,9 +203,17 @@ function parseLine(line, state) {
   }
 }
 
-async function runNodeScript(args, label) {
+function nodeArgsForScript(scriptPath) {
+  if (existsSync(".env.local")) {
+    return ["--env-file=.env.local", scriptPath];
+  }
+
+  return [scriptPath];
+}
+
+async function runNodeScript(scriptPath, label) {
   return new Promise((resolve) => {
-    const child = spawn("node", args, {
+    const child = spawn("node", nodeArgsForScript(scriptPath), {
       cwd: process.cwd(),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -246,7 +251,7 @@ async function runIngestAndCaptureMetrics() {
       ingestFinishedAt: null,
     };
 
-    const child = spawn("node", ["--env-file=.env.local", "scripts/ingest-news.mjs"], {
+    const child = spawn("node", nodeArgsForScript("scripts/ingest-news.mjs"), {
       cwd: process.cwd(),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -258,8 +263,8 @@ async function runIngestAndCaptureMetrics() {
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
       process.stdout.write(text);
-
       stdoutBuffer += text;
+
       const lines = stdoutBuffer.split(/\r?\n/);
       stdoutBuffer = lines.pop() || "";
 
@@ -271,8 +276,8 @@ async function runIngestAndCaptureMetrics() {
     child.stderr.on("data", (chunk) => {
       const text = chunk.toString();
       process.stderr.write(text);
-
       stderrBuffer += text;
+
       const lines = stderrBuffer.split(/\r?\n/);
       stderrBuffer = lines.pop() || "";
 
@@ -316,7 +321,9 @@ async function runIngestAndCaptureMetrics() {
 
 async function persistMetrics(runResult) {
   const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || null;
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    null;
 
   const supabaseKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -325,14 +332,11 @@ async function persistMetrics(runResult) {
     null;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.warn(
-      "Skipping true ingest metrics write because Supabase env vars are missing."
-    );
+    console.warn("Skipping true ingest metrics write because Supabase env vars are missing.");
     return;
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
-
   const sourceRuns = Array.from(runResult.state.sources.values());
 
   const totalSources = sourceRuns.length;
@@ -420,7 +424,7 @@ async function main() {
   }
 
   const diagnosticsResult = await runNodeScript(
-    ["--env-file=.env.local", "scripts/rebuild-source-diagnostics.mjs"],
+    "scripts/rebuild-source-diagnostics.mjs",
     "rebuild-source-diagnostics"
   );
 
