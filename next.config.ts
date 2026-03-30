@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
       "./node_modules/rss-parser/**/*",
       "./node_modules/slugify/**/*",
       "./node_modules/@supabase/**/*",
+      "./node_modules/iceberg-js/**/*",
     ],
   },
 };
