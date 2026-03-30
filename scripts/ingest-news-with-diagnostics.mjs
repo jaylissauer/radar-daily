@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import process from "node:process";
-import { createClient } from "@supabase/supabase-js";
 
 function makeSlug(value) {
   return String(value || "")
@@ -333,6 +332,15 @@ async function persistMetrics(runResult) {
 
   if (!supabaseUrl || !supabaseKey) {
     console.warn("Skipping true ingest metrics write because Supabase env vars are missing.");
+    return;
+  }
+
+  let createClient;
+
+  try {
+    ({ createClient } = await import("@supabase/supabase-js"));
+  } catch (error) {
+    console.warn("Skipping true ingest metrics write because @supabase/supabase-js is unavailable.");
     return;
   }
 
